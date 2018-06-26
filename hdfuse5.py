@@ -1,3 +1,4 @@
+# coding: utf-8
 #!/usr/bin/env python
 
 # Copyright (c) 2011 Tobias Richter <Tobias.Richter@diamond.ac.uk>
@@ -31,6 +32,7 @@ class HDFuse5(Operations):
 
 	def __init__(self, root):
 		self.root = os.path.realpath(root)
+                # Single path to netCDF file
 		self.rwlock = Lock()
 
 	def __call__(self, op, path, *args):
@@ -114,7 +116,7 @@ class HDFuse5(Operations):
                         
                         We are telling FUSE that the current entry is a file or a directory using the stat struct. 
                         In general, if the entry is a directory, st_mode have to be set
-                        to S_IFDIR and st_nlink to 2, while if it’s a file, st_mode have
+                        to S_IFDIR and st_nlink to 2, while if it’s a file, st_mode have 
                         to be set to S_IFREG (that stands for regular file) and st_nlink to 1.
                         Files also require that the st_size (the full file size) is specified.
                         """
@@ -126,6 +128,9 @@ class HDFuse5(Operations):
 			statdict = dict((key, getattr(st, key)) for key in ('st_atime', 'st_ctime',
 				'st_gid', 'st_mode', 'st_mtime', 'st_nlink', 'st_size', 'st_uid'))
 			if self.nexusfile != None:
+                                print "NEXUSHANDLE:  ", self.nexushandle
+                                print "NEXUSFILE:    ", self.nexusfile
+                                print "INTERNALPATH: ", self.internalpath
 				if self.internalpath == "/":
                                         print "at a filepath slash..."
                                         #import pdb; pdb.set_trace()
@@ -136,12 +141,16 @@ class HDFuse5(Operations):
 				#elif isinstance(self.nexushandle[self.internalpath],h5py.Dataset):
 				#	ob=self.nexushandle[self.internalpath].value
 				#	statdict["st_size"] = ob.size * ob.itemsize
-                                elif isinstance(self.nexushandle[self.internalpath], ncpy.Dataset):
+                                #elif isinstance(self.nexushandle[self.internalpath], ncpy.Dataset):
+                                
+                                elif isinstance(self.nexushandle, ncpy.Dataset):
                                         # It is a netcdf dataset!!!
+                                        # So we are going to render it as a directory
                                         print "getattr is dealing with a netCDF File"
-                                        ob =  self.nexushandle[self.internalpath].value
-                                        statdict["st_size"] = ob.size * ob.itemsize
-                                        print statdict["st_size"]
+                                        statdict = self.makeIntoDir(statdict)
+                                        statdict["st_size"] = 0
+                                        #statdict["st_size"] = ob.size * ob.itemsize
+                                        #print statdict["st_size"]
 			return statdict	
 
 		def getxattr(self, name):
@@ -166,7 +175,7 @@ class HDFuse5(Operations):
 					xattrs.append(i)
 			return xattrs
 
-                def getncVars(self);
+                def getncVars(self):
                         """Returns the variables in a netcdf file"""
                         pass
 
@@ -265,5 +274,5 @@ if __name__ == "__main__":
 		print 'usage: %s <root> <mountpoint>' % argv[0]
 		exit(1)
 	#signal.signal(signal.SIGINT, signal.SIG_DFL)
-	#fuse = FUSE(HDFuse5(argv[1]), argv[2], foreground=True)
-	fuse = FUSE(HDFuse5(argv[1]), argv[2])
+	fuse = FUSE(HDFuse5(argv[1]), argv[2], foreground=True)
+	#fuse = FUSE(HDFuse5(argv[1]), argv[2])
