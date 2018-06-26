@@ -98,6 +98,9 @@ class HDFuse5(Operations):
 					pass
 
 		def makeIntoDir(self, statdict):
+                        """Update the statdict if the item in the VFS should be
+                        presented as a directory
+                        """
                         print "Making a statdict!"
 			statdict["st_mode"] = statdict["st_mode"] ^ 0100000 | 0040000
 			for i in [ [ 0400 , 0100 ] , [ 040 , 010 ] , [ 04, 01 ] ]:
@@ -106,6 +109,15 @@ class HDFuse5(Operations):
 			return statdict
 
 		def getattr(self):
+                        """The getattr callback is in charge of reading the metadata of a given path,
+                            this callback is always called before any operation made on the filesystem.
+                        
+                        We are telling FUSE that the current entry is a file or a directory using the stat struct. 
+                        In general, if the entry is a directory, st_mode have to be set
+                        to S_IFDIR and st_nlink to 2, while if it’s a file, st_mode have
+                        to be set to S_IFREG (that stands for regular file) and st_nlink to 1.
+                        Files also require that the st_size (the full file size) is specified.
+                        """
                         #import pdb; pdb.set_trace()
 			if self.nexusfile != None:
 				st = os.lstat(self.nexusfile)
@@ -154,13 +166,20 @@ class HDFuse5(Operations):
 					xattrs.append(i)
 			return xattrs
 
+                def getncVars(self);
+                        """Returns the variables in a netcdf file"""
+                        pass
+
 		def listdir(self):
+                        """Overrides readdir
+
+                        """
 			if self.nexushandle == None:
 				return ['.', '..'] + [name.encode('utf-8') for name in os.listdir(self.fullpath)]
 			else:
 				items = self.nexushandle[self.internalpath].items()
 				return ['.', '..'] + [item[0].encode('utf-8')  for item in items]
-
+                        
 		def access(self, mode):
 			path = self.fullpath
 			if self.nexusfile != None:
