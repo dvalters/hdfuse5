@@ -175,9 +175,10 @@ class HDFuse5(Operations):
 					xattrs.append(i)
 			return xattrs
 
-                def getncVars(self):
+                def getncVars(self, ncfile):
                         """Returns the variables in a netcdf file"""
-                        pass
+                        dset = ncpy.Dataset(ncfile, 'r')
+                        return dset.variables
 
 		def listdir(self):
                         """Overrides readdir
@@ -185,6 +186,10 @@ class HDFuse5(Operations):
                         """
 			if self.nexushandle == None:
 				return ['.', '..'] + [name.encode('utf-8') for name in os.listdir(self.fullpath)]
+                        elif isinstance(self.nexushandle, ncpy.Dataset):
+                                # Return a list of netCDF variables
+                                netCDFvars = self.getncVars(self.nexusfile)
+                                return ['.', '..'] + [item.encode('utf-8') for item in netCDFvars]
 			else:
 				items = self.nexushandle[self.internalpath].items()
 				return ['.', '..'] + [item[0].encode('utf-8')  for item in items]
