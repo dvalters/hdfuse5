@@ -22,6 +22,7 @@ from threading import Lock
 
 import os
 import h5py
+import netCDF4 as ncpy
 
 from fuse import FUSE, FuseOSError, Operations, LoggingMixIn
 
@@ -50,21 +51,39 @@ class HDFuse5(Operations):
 			self.internalpath = "/"
 			if os.path.lexists(path):
 				self.testHDF(path)
+                                self.testNetCDF(path)
 			else:
 				components = path.split("/")
 				for i in range(len(components),0,-1):
 					test = "/".join(components[:i])
+                                        #print test
+                                        if self.testNetCDF(test):
+                                                self.internalpath = "/".join(components[i - len(components):])
+                                                print self.internalpath
+                                                break
+
 					if self.testHDF(test):
 						self.internalpath = "/".join(components[i-len(components):])
-						#print self.internalpath
+						print self.internalpath
 						break
+
+                def testNetCDF(self, path):
+                        if os.path.isfile(path):
+                                try:
+                                        self.nexushandle = ncpy.Dataset(path, 'r')
+                                        self.nexusfile = path
+                                        print path + " is netCDF"
+                                        return True
+                                except exc as e:
+                                        print e
+                                return False
 
 		def testHDF(self, path):
 			if os.path.isfile(path):
 				try:
 					self.nexushandle = h5py.File(path,'r')
 					self.nexusfile = path
-					#print path + " is hdf"
+					print path + " is hdf"
 					return True
 				except:
 					pass
@@ -79,6 +98,7 @@ class HDFuse5(Operations):
 					pass
 
 		def makeIntoDir(self, statdict):
+                        print "Making a statdict!"
 			statdict["st_mode"] = statdict["st_mode"] ^ 0100000 | 0040000
 			for i in [ [ 0400 , 0100 ] , [ 040 , 010 ] , [ 04, 01 ] ]:
 				if (statdict["st_mode"] & i[0]) != 0:
@@ -86,6 +106,7 @@ class HDFuse5(Operations):
 			return statdict
 
 		def getattr(self):
+                        #import pdb; pdb.set_trace()
 			if self.nexusfile != None:
 				st = os.lstat(self.nexusfile)
 			else:
@@ -94,13 +115,21 @@ class HDFuse5(Operations):
 				'st_gid', 'st_mode', 'st_mtime', 'st_nlink', 'st_size', 'st_uid'))
 			if self.nexusfile != None:
 				if self.internalpath == "/":
+                                        print "at a filepath slash..."
+                                        #import pdb; pdb.set_trace()
 					statdict = self.makeIntoDir(statdict)
-				elif isinstance(self.nexushandle[self.internalpath],h5py.Group):
-					statdict = self.makeIntoDir(statdict)
-					statdict["st_size"] = 0
-				elif isinstance(self.nexushandle[self.internalpath],h5py.Dataset):
-					ob=self.nexushandle[self.internalpath].value
-					statdict["st_size"] = ob.size * ob.itemsize
+				#elif isinstance(self.nexushandle[self.internalpath],h5py.Group):
+				#	statdict = self.makeIntoDir(statdict)
+				#	statdict["st_size"] = 0
+				#elif isinstance(self.nexushandle[self.internalpath],h5py.Dataset):
+				#	ob=self.nexushandle[self.internalpath].value
+				#	statdict["st_size"] = ob.size * ob.itemsize
+                                elif isinstance(self.nexushandle[self.internalpath], ncpy.Dataset):
+                                        # It is a netcdf dataset!!!
+                                        print "getattr is dealing with a netCDF File"
+                                        ob =  self.nexushandle[self.internalpath].value
+                                        statdict["st_size"] = ob.size * ob.itemsize
+                                        print statdict["st_size"]
 			return statdict	
 
 		def getxattr(self, name):
@@ -146,7 +175,11 @@ class HDFuse5(Operations):
 				with lock:
 					os.lseek(fh, offset, 0)
 				return os.read(fh, size)
-			if isinstance(self.nexushandle[self.internalpath],h5py.Dataset):
+			#if isinstance(self.nexushandle[self.internalpath],h5py.Dataset):
+			#	return self.nexushandle[self.internalpath].value.tostring()[offset:offset+size]
+
+
+			if isinstance(self.nexushandle[self.internalpath],ncpy.Dataset):
 				return self.nexushandle[self.internalpath].value.tostring()[offset:offset+size]
 
 		def open(self, flags):
